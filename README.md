@@ -32,13 +32,18 @@ Zabbix template for monitor the UniFi Network application via the official API.
 
 1. **Import the Zabbix template** file 'zbx_template_unifi_network_api.yaml' that matches your Zabbix Server version.
 2. **Create a UniFi API key** in Settings → Control Plane → Integrations → Your API Keys, and set it to never expire.
-3. **Create a Zabbix Host** without interfaces. **Assign the 'UniFi Network API' template**. Then **modify '{$UNIFI_NETWORK_API_ADDRESS}'** and **'{$UNIFI_NETWORK_API_KEY}'** Macros as described in the 'Description'.
+3. **Create a Zabbix Host** without interfaces. **Assign the 'UniFi Network API' template**
+        Macros 
+        **Modify '{$UNIFI_NETWORK_API_ADDRESS}'**
+        **Modify '{$UNIFI_NETWORK_API_KEY}'**
+        **Modify '{$SITE_LABEL}'** (Site name for single or multi-site)
 
 > [!NOTE]
 > Update intervals, Triggers, History and Treands retantions can be personalized using 'Inherited and host macros'.
 
 > [!WARNING]
 > '{$UNIFI_NETWORK_API_ADDRESS}' Macros must contain only IP or DNS name.
+> '{$SITE_LABEL}' Must be set with your site name, if blank, only 1 site (default) is permitted.
 
 ## Contribute
 
