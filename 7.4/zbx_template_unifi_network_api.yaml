@@ -55,6 +55,31 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - $.data
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  // TECH NOTE: Create a unique Zabbix host name across controllers using {$SITE_LABEL}-{site_id}.
+                  // Backward compatible: if {$SITE_LABEL} is not set, keep the original host name (site_id).
+                  var site_label = '{$SITE_LABEL}';
+                  if (!site_label || site_label.indexOf('{$') === 0) {
+                      site_label = '';
+                  }
+                  
+                  var site_label_slug = (site_label || '')
+                      .replace(/[^A-Za-z0-9_.-]/g, '_')
+                      .replace(/^[-_.]+|[-_.]+$/g, '');
+                  
+                  var obj = JSON.parse(value);
+                  if (!Array.isArray(obj)) {
+                      return value;
+                  }
+                  
+                  for (i = 0; i < Object.keys(obj).length; i++) {
+                      obj[i]["site_label"] = site_label || obj[i]["name"];
+                      obj[i]["zbx_host"] = site_label_slug ? (site_label_slug + '-' + obj[i]["id"]) : obj[i]["id"];
+                  }
+                  
+                  return JSON.stringify(obj)
           url: 'https://{$UNIFI_NETWORK_API_ADDRESS}/proxy/network/integration/v1/sites'
           query_fields:
             - name: limit
@@ -66,13 +91,14 @@ zabbix_export:
               value: '{$UNIFI_NETWORK_API_KEY}'
       discovery_rules:
         - uuid: 547add54b79142c29ed100b9b17182a9
-          name: 'Discovery Sites'
+          name: 'Sites'
           type: DEPENDENT
           key: discovery.sites
           host_prototypes:
             - uuid: 1a55e15794694c3dbf70993f49731617
-              host: '{#ID}'
-              name: 'UniFi Network - Site: "{#NAME}"'
+              # TECH NOTE: Host name may be prefixed for uniqueness (do not assume host == site id).
+              host: '{#ZBX_HOST}'
+              name: 'Site: "{#SITE_LABEL}"'
               group_links:
                 - group:
                     name: 'UniFi Network Sites'
@@ -85,6 +111,9 @@ zabbix_export:
                 - macro: '{$SITE.NAME}'
                   value: '{#NAME}'
                   description: 'Site NAME. Used by Template, DO NOT CHANGE OR DELETE.'
+                - macro: '{$SITE_LABEL}'
+                  value: '{#SITE_LABEL}'
+                  description: 'Site Label, peronnal site name.'
               tags:
                 - tag: 'UniFi Network Type'
                   value: Site
@@ -95,6 +124,10 @@ zabbix_export:
               path: $.id
             - lld_macro: '{#NAME}'
               path: $.name
+            - lld_macro: '{#SITE_LABEL}'
+              path: $.site_label
+            - lld_macro: '{#ZBX_HOST}'
+              path: $.zbx_host
       macros:
         - macro: '{$ITEM_APPLICATION.VERSION_HISTORY}'
           value: 7d
@@ -108,6 +141,8 @@ zabbix_export:
         - macro: '{$TRIGGER_NODATA}'
           value: 30m
           description: 'Trigger ''No Data'' after 30 minutes of missing data'
+        - macro: '{$SITE_LABEL}'
+          description: 'Site_Label, peronnal site name'
         - macro: '{$UNIFI_NETWORK_API_ADDRESS}'
           description: 'UniFi Network API Address or Dns Name'
         - macro: '{$UNIFI_NETWORK_API_KEY}'
@@ -635,7 +670,7 @@ zabbix_export:
               priority: INFO
       discovery_rules:
         - uuid: d601092ad5394965b03d1669b17d77d3
-          name: 'Discovery Ports'
+          name: 'Ports'
           type: DEPENDENT
           key: discovery.ports
           item_prototypes:
@@ -830,7 +865,7 @@ zabbix_export:
               parameters:
                 - $.interfaces.ports
         - uuid: e3a9fbb1f35444d1b76fee7de2a19d6a
-          name: 'Discovery Radios'
+          name: 'Radios'
           type: DEPENDENT
           key: discovery.radios
           item_prototypes:
@@ -917,7 +952,7 @@ zabbix_export:
               parameters:
                 - $.interfaces.radios
         - uuid: 823b7bd353e74e49a80437a97d2f9675
-          name: 'Discovery Radios Statistics'
+          name: 'Radios Statistics'
           type: DEPENDENT
           key: discovery.radios.statistics
           item_prototypes:
@@ -1100,14 +1135,21 @@ zabbix_export:
               parameters:
                 - |
                   var site_name = '{$SITE.NAME}'
+                  var site_label = '{$SITE_LABEL}';
+                  
+                  if (!site_label || site_label.indexOf('{$') === 0) {
+                      site_label = site_name;
+                  }
                   var obj = JSON.parse(value);
                   
                   for (i = 0; i < Object.keys(obj).length; i++) {
                       obj[i]["site_name"] = site_name;
+                      obj[i]["site_label"] = site_label;
                   }
                   
                   return JSON.stringify(obj)
-          url: 'https://{$UNIFI_NETWORK_API_ADDRESS}/proxy/network/integration/v1/sites/{HOST.HOST}/clients'
+          # TECH NOTE: Use {$SITE.ID} instead of {HOST.HOST}; host name may be prefixed for uniqueness.
+          url: 'https://{$UNIFI_NETWORK_API_ADDRESS}/proxy/network/integration/v1/sites/{$SITE.ID}/clients'
           query_fields:
             - name: limit
               value: '200'
@@ -1186,14 +1228,21 @@ zabbix_export:
               parameters:
                 - |
                   var site_name = '{$SITE.NAME}'
+                  var site_label = '{$SITE_LABEL}';
+                  
+                  if (!site_label || site_label.indexOf('{$') === 0) {
+                      site_label = site_name;
+                  }
                   var obj = JSON.parse(value);
                   
                   for (i = 0; i < Object.keys(obj).length; i++) {
                       obj[i]["site_name"] = site_name;
+                      obj[i]["site_label"] = site_label;
                   }
                   
                   return JSON.stringify(obj)
-          url: 'https://{$UNIFI_NETWORK_API_ADDRESS}/proxy/network/integration/v1/sites/{HOST.HOST}/devices'
+          # TECH NOTE: Use {$SITE.ID} instead of {HOST.HOST}; host name may be prefixed for uniqueness.
+          url: 'https://{$UNIFI_NETWORK_API_ADDRESS}/proxy/network/integration/v1/sites/{$SITE.ID}/devices'
           query_fields:
             - name: limit
               value: '200'
@@ -1204,13 +1253,13 @@ zabbix_export:
               value: '{$UNIFI_NETWORK_API_KEY}'
       discovery_rules:
         - uuid: 71f9d3c0a274480cbe0ab2d13634c56a
-          name: 'Discovery Clients'
+          name: 'Clients'
           type: DEPENDENT
           key: discovery.clients
           host_prototypes:
             - uuid: 698daaa185c14e6eb87b13169d335e57
               host: '{#ID}'
-              name: 'UniFi Network - Site: "{#SITE.NAME}" - Client: "{#NAME}"'
+              name: 'Site: "{#SITE_LABEL}" - Client: "{#NAME}"'
               group_links:
                 - group:
                     name: 'UniFi Network Clients'
@@ -1218,7 +1267,7 @@ zabbix_export:
                 - name: 'UniFi Network API - Client'
               tags:
                 - tag: 'UniFi Network Site'
-                  value: '{#SITE.NAME}'
+                  value: '{#SITE_LABEL}'
                 - tag: 'UniFi Network Type'
                   value: Client
           master_item:
@@ -1230,14 +1279,16 @@ zabbix_export:
               path: $.name
             - lld_macro: '{#SITE.NAME}'
               path: $.site_name
+            - lld_macro: '{#SITE_LABEL}'
+              path: $.site_label
         - uuid: 5074ac28f8ca492399cd570382947a68
-          name: 'Discovery Devices'
+          name: 'Devices'
           type: DEPENDENT
           key: discovery.devices
           host_prototypes:
             - uuid: b3032d54e5454298ad0588fd1c6c8a41
               host: '{#ID}'
-              name: 'UniFi Network - Site: "{#SITE.NAME}" - Device: "{#NAME}"'
+              name: 'Site: "{#SITE_LABEL}" - Device: "{#NAME}"'
               group_links:
                 - group:
                     name: 'UniFi Network Devices'
@@ -1245,7 +1296,7 @@ zabbix_export:
                 - name: 'UniFi Network API - Device'
               tags:
                 - tag: 'UniFi Network Site'
-                  value: '{#SITE.NAME}'
+                  value: '{#SITE_LABEL}'
                 - tag: 'UniFi Network Type'
                   value: Device
           master_item:
@@ -1257,6 +1308,8 @@ zabbix_export:
               path: $.name
             - lld_macro: '{#SITE.NAME}'
               path: $.site_name
+            - lld_macro: '{#SITE_LABEL}'
+              path: $.site_label
       macros:
         - macro: '{$ITEM_CLIENTS.JSON_UPDATE}'
           value: 10m
